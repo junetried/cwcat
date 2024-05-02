@@ -10,7 +10,7 @@ due to player death, the game crashing, or negligence.
 Since this library does
 no encoding or decoding, it should be very fast, even with many clips. It should
 also work with mods that change the allowed video length or bitrate or
-resolution. The only assumptions are that the videos are VP8, the audio is
+resolution. The only assumptions are that the videos are VP8 and the audio is
 Vorbis. Things about the video and audio, like sample rate, frame rate, and
 channel count, must not change between clips; these are checked and the library
 will return an error if it finds any of them have changed.
