@@ -52,6 +52,7 @@ pub fn concatenate_from_bytes<R>(bytes_arrays: &mut [R], keep_second_audio_track
 
 	segment.set_app_name("libcwcat 0.1.0");
 
+	let first_video_start_pos = bytes_arrays[0].stream_position()?;
 	// Get the video track details
 	let first_video = MatroskaFile::open(&mut bytes_arrays[0])?;
 
@@ -77,6 +78,7 @@ pub fn concatenate_from_bytes<R>(bytes_arrays: &mut [R], keep_second_audio_track
 	}
 
 	drop(first_video);
+	bytes_arrays[0].seek(std::io::SeekFrom::Start(first_video_start_pos))?;
 
 	let (audio_track0_id, video_track_id, audio_track1_id) = (1, 2, 3);
 
