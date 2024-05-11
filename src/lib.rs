@@ -50,7 +50,7 @@ pub fn concatenate_from_bytes<R>(bytes_arrays: &mut [R], keep_second_audio_track
 	let mut audio1_channels = 0;
 	let mut segment = webm::mux::Segment::new(writer).unwrap();
 
-	segment.set_app_name("libcwcat 0.1.0");
+	segment.set_app_name(&app_name());
 
 	let first_video_start_pos = bytes_arrays[0].stream_position()?;
 	// Get the video track details
@@ -282,4 +282,9 @@ pub fn concatenate_from_rec_path<P>(path: P, keep_second_audio_track: bool) -> R
 
 	// And concatenate them
 	concatenate_from_bytes(&mut bytes_arrays, keep_second_audio_track)
+}
+
+/// Return the name of this library.
+pub fn app_name() -> String {
+	format!("lib{}-{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
 }
