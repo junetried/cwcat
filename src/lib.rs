@@ -234,14 +234,14 @@ pub fn list_from_rec_path<P>(path: P) -> Result<Vec<(PathBuf, std::fs::Metadata)
 		let entry = entry?;
 		let metadata = entry.metadata()?;
 		if metadata.is_dir() {
-			if entry.path().join(FRAGMENT_RECORDING_FILENAME).exists() {
+			if entry.path().join(FRAGMENT_RECORDING_FILENAME).is_file() {
 				let created = metadata.created()?;
 				dirs.push((entry.path(), metadata, created))
 			}
 		}
 	}
 
-	// Sort them by date created
+	// Sort them by ascending date created
 	dirs.sort_by(|a, b| {
 		a.2.cmp(&b.2)
 	});
