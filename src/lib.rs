@@ -314,6 +314,27 @@ pub fn fragment_size_from_rec_path<P>(path: P) -> Result<u64, Error>
 	Ok(size)
 }
 
+/// Get the video duration in milliseconds from a byte cursor.
+/// 
+/// This only uses the Info Duration for the Segment, and does not count frames.
+/// If this is inaccurate for some reason, the return value of this function
+/// will also be inaccurate.
+pub fn clip_duration_from_bytes<R>(bytes: &mut R) -> Result<u64, Error>
+	where R: std::io::Read + std::io::Seek {
+
+	let timestamp_scale: f64;
+
+	let file = MatroskaFile::open(bytes)?;
+	let info = file.info();
+	let t: u64 = info.timestamp_scale().into();
+	timestamp_scale = t as f64;
+
+	match info.duration() {
+		None => Err(Error::MissingDuration),
+		Some(duration) => Ok(((duration * timestamp_scale) / 1_000_000.0) as u64)
+	}
+}
+
 /// Get the total video duration in milliseconds from an array of byte cursors.
 /// 
 /// This only uses the Info Duration for the Segment, and does not count frames.
@@ -326,18 +347,9 @@ pub fn duration_from_bytes<R>(bytes_arrays: &mut [R]) -> Result<u64, Error>
 	if bytes_arrays.is_empty() { return Ok(0) }
 
 	let mut time: u64 = 0;
-	let mut timestamp_scale: f64;
 
 	for bytes in bytes_arrays {
-		let file = MatroskaFile::open(bytes)?;
-		let info = file.info();
-		let t: u64 = info.timestamp_scale().into();
-		timestamp_scale = t as f64;
-
-		match info.duration() {
-			None => return Err(Error::MissingDuration),
-			Some(duration) => time += ((duration * timestamp_scale) / 1_000_000.0) as u64
-		}
+		time += clip_duration_from_bytes(bytes)?
 	}
 
 	Ok(time)
@@ -366,6 +378,23 @@ pub fn duration_from_rec_path<P>(path: P) -> Result<u64, Error>
 
 	// And return the duration
 	duration_from_bytes(&mut bytes_arrays)
+}
+
+/// Get the video duration in milliseconds from the path to a clip directory.
+/// 
+/// This only uses the Info Duration for the Segment, and does not count frames.
+/// If this is inaccurate for some reason, the return value of this function
+/// will also be inaccurate.
+/// 
+/// For a directory that doesn't have any file by the name of
+/// [FRAGMENT_RECORDING_FILENAME], this function will return an error.
+pub fn clip_duration_from_path<P>(path: P) -> Result<u64, Error>
+	where P: Into<PathBuf> {
+
+	let mut file = std::fs::File::open(path.into().join(FRAGMENT_RECORDING_FILENAME))?;
+
+	// And return the duration
+	clip_duration_from_bytes(&mut file)
 }
 
 /// Concatenate WebM video from the path to a rec directory.
