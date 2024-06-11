@@ -210,6 +210,34 @@ pub fn concatenate_from_bytes<R>(bytes_arrays: &mut [R], keep_second_audio_track
 	Ok(writer.unwrap().into_inner())
 }
 
+/// Returns a Vec of all clip fragment directories, which is not sorted.
+/// 
+/// This function checks for the existence of files with the name of
+/// [FRAGMENT_RECORDING_FILENAME] inside of subdirectories of the given path,
+/// and returns a Vec containing only those directories that met this condition.
+/// 
+/// For a directory that doesn't seem to have any recordings (like an empty
+/// directory) this function will return an empty Vec.
+pub fn unsorted_list_from_rec_path<P>(path: P) -> Result<Vec<(PathBuf, std::fs::Metadata)>, Error>
+	where P: Into<PathBuf> {
+	let rec_path = path.into();
+
+	// Find all the directories that have the clips we want
+	let mut dirs: Vec<(PathBuf, std::fs::Metadata)> = Vec::new();
+
+	for entry in std::fs::read_dir(rec_path)? {
+		let entry = entry?;
+		let metadata = entry.metadata()?;
+		if metadata.is_dir() {
+			if entry.path().join(FRAGMENT_RECORDING_FILENAME).is_file() {
+				dirs.push((entry.path(), metadata))
+			}
+		}
+	}
+
+	Ok(dirs)
+}
+
 /// Returns a Vec of all clip fragment directories, sorted from oldest to newest
 /// creation date.
 /// 
@@ -254,6 +282,90 @@ pub fn list_from_rec_path<P>(path: P) -> Result<Vec<(PathBuf, std::fs::Metadata)
 	}
 
 	Ok(dirs_out)
+}
+
+
+/// Returns the combined size of all clip fragment files.
+/// 
+/// This function checks for the existence of files with the name of
+/// [FRAGMENT_RECORDING_FILENAME] inside of subdirectories of the given path,
+/// and returns the combined size of only these files, not including any other
+/// files or inode overhead (size on disk).
+/// 
+/// For a directory that doesn't seem to have any recordings (like an empty
+/// directory) this function will return zero.
+pub fn fragment_size_from_rec_path<P>(path: P) -> Result<u64, Error>
+	where P: Into<PathBuf> {
+	let rec_path = path.into();
+
+	let mut size = 0;
+
+	for entry in std::fs::read_dir(rec_path)? {
+		let entry = entry?;
+		let metadata = entry.metadata()?;
+		if metadata.is_dir() {
+			let fragment_file = entry.path().join(FRAGMENT_RECORDING_FILENAME);
+			if fragment_file.is_file() {
+				size += std::fs::metadata(fragment_file)?.len()
+			}
+		}
+	}
+
+	Ok(size)
+}
+
+/// Get the total video duration in milliseconds from an array of byte cursors.
+/// 
+/// This only uses the Info Duration for the Segment, and does not count frames.
+/// If this is inaccurate for some reason, the return value of this function
+/// will also be inaccurate.
+/// 
+/// For an empty array, this function will return zero.
+pub fn duration_from_bytes<R>(bytes_arrays: &mut [R]) -> Result<u64, Error>
+	where R: std::io::Read + std::io::Seek {
+	if bytes_arrays.is_empty() { return Ok(0) }
+
+	let mut time: u64 = 0;
+	let mut timestamp_scale: f64;
+
+	for bytes in bytes_arrays {
+		let file = MatroskaFile::open(bytes)?;
+		let info = file.info();
+		let t: u64 = info.timestamp_scale().into();
+		timestamp_scale = t as f64;
+
+		match info.duration() {
+			None => return Err(Error::MissingDuration),
+			Some(duration) => time += ((duration * timestamp_scale) / 1_000_000.0) as u64
+		}
+	}
+
+	Ok(time)
+}
+
+/// Get the total video duration in milliseconds from the path to a rec
+/// directory.
+/// 
+/// This only uses the Info Duration for the Segment, and does not count frames.
+/// If this is inaccurate for some reason, the return value of this function
+/// will also be inaccurate.
+/// 
+/// For a directory that doesn't seem to have any recordings (like an empty
+/// directory) this function will return zero.
+pub fn duration_from_rec_path<P>(path: P) -> Result<u64, Error>
+	where P: Into<PathBuf> {
+
+	// Open these files
+	let mut bytes_arrays = Vec::new();
+
+	for (fragment, _) in unsorted_list_from_rec_path(path.into())? {
+		bytes_arrays.push(
+			std::fs::File::open(fragment.join(FRAGMENT_RECORDING_FILENAME))?
+		)
+	}
+
+	// And return the duration
+	duration_from_bytes(&mut bytes_arrays)
 }
 
 /// Concatenate WebM video from the path to a rec directory.

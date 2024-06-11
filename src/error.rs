@@ -31,6 +31,8 @@ pub enum Error {
 	VideoResolutionChanges { old_w: u64, old_h: u64, new_w: u64, new_h: u64 },
 	/// Couldn't determine if a frame was a keyframe or not.
 	UnknownKeyframe,
+	/// Duration info was missing.
+	MissingDuration,
 	/// IO error.
 	IOError(std::io::Error)
 }
@@ -60,6 +62,7 @@ impl std::fmt::Display for Error {
 			Self::SampleRateChanges { old, new } => write!(f, "The sample rate changes between files (old: {old}, new: {new})"),
 			Self::VideoResolutionChanges { old_w, old_h, new_w, new_h } => write!(f, "The video resolution changes between files (old: {old_w}x{old_h}, new: {new_w}x{new_h})"),
 			Self::UnknownKeyframe => write!(f, "is_keyframe returned None"),
+			Self::MissingDuration => write!(f, "Duration in info was not specified"),
 			Self::IOError (io_error) => write!(f, "IO error: {}", io_error),
 		}
 	}
